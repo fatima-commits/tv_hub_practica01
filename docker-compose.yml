@@ -1,7 +1,7 @@
 services:
   mongo:
     image: mongo:8.2
-    container_name: tvhub-mongo
+    container_name: tvhub-mongo-practica01
     ports:
       - "27017:27017"
     volumes:

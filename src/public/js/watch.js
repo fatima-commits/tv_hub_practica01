@@ -30,17 +30,56 @@ async function toggleFavorite() {
 async function playChannel() {
   // TODO 7:
   // Inicializa Shaka Player con `video`, carga `channel.streamUrl` y maneja sus estados.
+  player = new shaka.Player(video);
+
+  try {
+    await player.load(channel.streamUrl);
+    showPlayerState('playing', '');
+  } catch {
+    showPlayerState(
+      'error',
+      'This live stream cannot be played right now.'
+    );
+  }
   // TODO 8: muestra los estados Loading, Playing y Error según el resultado del reproductor.
-  showPlayerState('error', 'Playback is not implemented yet.');
+  //showPlayerState('error', 'Playback is not implemented yet.');
+  showPlayerState('loading', 'Preparing the live stream...');
+
+  try {
+    await player.load(channel.streamUrl);
+    showPlayerState('playing', '');
+  } catch {
+    showPlayerState(
+      'error',
+      'This live stream cannot be played right now.'
+    );
+  }
 }
+
 async function loadChannel() {
   if (!channelId) { showPlayerState('error', 'Choose a channel from Home.'); return; }
 
-  // TODO 5:
-  // Consulta GET /api/channels/:id y asigna la respuesta a `channel`.
-  // TODO 6: muestra nombre, país y categorías antes de cargar favoritos y reproducir.
-  showPlayerState('error', 'Channel loading is not implemented yet.');
+  // TODO 5
+  const response = await fetch(`/api/channels/${channelId}`);
+  if (!response.ok) {
+    showPlayerState('error', 'Channel not found.');
+    return;
+  }
+  const data = await response.json();
+  channel = data.channel;
+
+  // TODO 6
+  document.querySelector('#channel-name').textContent = channel.name;
+  document.querySelector('#channel-country').textContent = channel.country;
+  const logo = document.querySelector('#channel-logo');
+  logo.src = channel.logoUrl;
+  document.querySelector('#channel-categories').textContent =
+    (channel.categories || []).join(', ') || 'Live TV';
+
+  await loadFavoriteState();
+  await playChannel();
 }
+
 favoriteButton.addEventListener('click', toggleFavorite); retryButton.addEventListener('click', playChannel);
 if (channelId) reportProblemLink.href = `/reports.html?${new URLSearchParams({ channelId })}`;
 document.querySelector('#logout').addEventListener('click', async () => { await fetch('/api/auth/logout', { method: 'POST' }); location.href = '/login'; });
