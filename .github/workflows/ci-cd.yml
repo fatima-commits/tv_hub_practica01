@@ -1,34 +1,81 @@
 name: CI/CD TV Hub
 
+# CI corre en cada push y pull request a main.
+# CD (deploy) solo corre en push a main y solo si CI pasa.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
+# Si llegan dos pushes seguidos, cancela la ejecución anterior de la misma rama.
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     name: Tests y build
     runs-on: ubuntu-latest
+
+    # MongoDB temporal solo para las pruebas (no toca Atlas ni datos reales).
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # Variables que exige src/config/env.ts. Valores de prueba, no secretos reales.
+    env:
+      NODE_ENV: test
+      MONGODB_URI: mongodb://localhost:27017/tvhub_test
+      JWT_ACCESS_SECRET: ci-access-secret-solo-para-tests
+      JWT_REFRESH_SECRET: ci-refresh-secret-solo-para-tests
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar pruebas
+        run: npm test
+
+      - name: Compilar TypeScript
+        run: npm run build
 
   deploy:
     name: Solicitar despliegue a Render
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+
     steps:
-      - name: Commit desplegado
-        run: echo "Desplegando commit ${{ github.sha }}"
-      - name: Llamar Deploy Hook
+      - name: Commit a desplegar
+        run: |
+          echo "Commit: ${{ github.sha }}"
+          echo "Mensaje: ${{ github.event.head_commit.message }}"
+
+      - name: Llamar al Deploy Hook de Render
         env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: curl -fsS -X POST "$HOOK"
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Falta el secreto RENDER_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+          echo ""
+          echo "Despliegue solicitado a Render para ${{ github.sha }}"
