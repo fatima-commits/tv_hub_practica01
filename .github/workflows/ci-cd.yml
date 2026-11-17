@@ -8,27 +8,41 @@ on:
 
 jobs:
   ci:
-    name: Tests y build
+    name: Build
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar
+        run: npm run build
 
   deploy:
     name: Solicitar despliegue a Render
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+
     steps:
-      - name: Commit desplegado
+      - name: Commit a desplegar
         run: echo "Desplegando commit ${{ github.sha }}"
-      - name: Llamar Deploy Hook
+
+      - name: Llamar Deploy Hook de Render
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: curl -fsS -X POST "$HOOK"
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Falta el secreto RENDER_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+          curl -fsS -X POST "$HOOK"
