@@ -10,49 +10,25 @@ jobs:
   ci:
     name: Tests y build
     runs-on: ubuntu-latest
-
-    # Valores de prueba (no reales) para que env.ts no falle al importar.
-    env:
-      NODE_ENV: test
-      MONGODB_URI: mongodb://127.0.0.1:27017/tvhub_test
-      JWT_ACCESS_SECRET: ci_access_secret_dummy
-      JWT_REFRESH_SECRET: ci_refresh_secret_dummy
-
     steps:
-      - name: Descargar código
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Ejecutar pruebas
-        run: npm test
-
-      - name: Compilar
-        run: npm run build
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
 
   deploy:
     name: Solicitar despliegue a Render
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Commit a desplegar
+      - name: Commit desplegado
         run: echo "Desplegando commit ${{ github.sha }}"
-
-      - name: Llamar Deploy Hook de Render
+      - name: Llamar Deploy Hook
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -z "$HOOK" ]; then
-            echo "Falta el secreto RENDER_DEPLOY_HOOK_URL"
-            exit 1
-          fi
-          curl -fsS -X POST "$HOOK"
+        run: curl -fsS -X POST "$HOOK"
